@@ -189,11 +189,34 @@ document.getElementById('loadVideoBtn').addEventListener('click', function() {
     if (videoId && playersReady.main && playersReady.secret) {
         mainPlayer.loadVideoById(videoId);
         secretPlayer.loadVideoById(videoId);
-        urlInput.style.border = '1px solid #28a745';
+        urlInput.style.borderBottomColor = '#28a745';
+
+        document.getElementById('landing-container').classList.add('hidden');
+        document.getElementById('player-container').classList.remove('hidden');
+
     } else {
-        urlInput.style.border = '1px solid #c00';
-        document.getElementById('main-player').innerHTML = `<p style="color: red; text-align: center; padding-top: 130px;">Invalid URL or players not ready. Please try again.</p>`;
+        urlInput.style.borderBottomColor = '#c00';
     }
+});
+
+// **NEW**: Event listener for the Home button
+document.getElementById('homeBtn').addEventListener('click', function() {
+    // Stop both players
+    mainPlayer.stopVideo();
+    secretPlayer.stopVideo();
+
+    // Reset state
+    lastState = -1;
+    stopAdChecker();
+
+    // Show the landing page and hide the player
+    document.getElementById('landing-container').classList.remove('hidden');
+    document.getElementById('player-container').classList.add('hidden');
+
+    // Clear the input field for the next use
+    const urlInput = document.getElementById('youtubeUrl');
+    urlInput.value = '';
+    urlInput.style.borderBottomColor = '#bcaaa4'; // Reset border color
 });
 
 document.getElementById('loadMainVideoBtn').addEventListener('click', function() {

@@ -3,22 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YouTube Player</title>
+    <title>Uninterrupted</title>
     <link rel="stylesheet" href="style.css">
+    <!-- Add Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Montserrat:wght@300;400&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="container">
-        <h1>YouTube Video Player</h1>
+    <!-- This container holds the initial landing page content -->
+    <div class="container" id="landing-container">
+        <h1 class="fade-in">Uninterrupted</h1>
         <p>Paste a YouTube link below to start.</p>
         <div class="input-group">
-            <input type="text" id="youtubeUrl" placeholder="https://www.youtube.com/watch?v=...">
-            <button id="loadVideoBtn">Load Video</button>
+            <input type="text" id="youtubeUrl" placeholder="Paste YouTube link here">
         </div>
+        <button id="loadVideoBtn">Load</button>
+    </div>
+
+    <!-- This container will hold the video players once loaded -->
+    <div class="container hidden" id="player-container">
+        <button id="homeBtn">&#8962; home</button> <!-- House symbol and text -->
         <div id="player-wrapper">
             <div id="main-player"></div>
             <div id="secret-player" class="hidden"></div>
         </div>
     </div>
+
     <script src="https://www.youtube.com/iframe_api"></script>
     <script src="script.js"></script>
 </body>
