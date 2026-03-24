@@ -4,10 +4,17 @@ let mainVideoId, secretVideoId;
 let playersReady = { main: false, secret: false };
 let lastState = -1; // Unstarted
 
+const AD_CHECK_INTERVAL_MS = 100;
+const VIEWED_TIME_TRACK_INTERVAL_MS = 50;
+const AD_REWIND_THRESHOLD_SECONDS = 1;
+const TIME_TRACK_TOLERANCE_SECONDS = 0.05;
+
 // --- Ad detection variables ---
 let adCheckInterval = null;
+let viewedTimeTrackInterval = null;
 let viewedPlayerLastTime = -1;
 let standbyPlayerLastTime = -1;
+let viewedPlayerStableTime = -1;
 let isStandbyPlayerInAdMode = false;
 let standbyTimeBeforeAd = -1; // **NEW**: Tracks time before an ad block starts
 let standbyAdCount = 0; // **NEW**: Counter for ads in a block
@@ -30,6 +37,7 @@ function onPlayerReady(playerName) {
     if (playersReady.main && playersReady.secret) {
         viewedPlayer = mainPlayer;
         standbyPlayer = secretPlayer;
+        applyPlayerAudio();
     }
 }
 
@@ -52,14 +60,17 @@ function syncPlayback(newState) {
         viewedPlayer.playVideo();
         standbyPlayer.playVideo();
         applyPlayerModes(); // Set speeds
+        startViewedTimeTracker();
         startAdChecker();
     } else if (newState === YT.PlayerState.PAUSED && lastState !== YT.PlayerState.PAUSED) {
         lastState = YT.PlayerState.PAUSED;
         viewedPlayer.pauseVideo();
         standbyPlayer.pauseVideo();
+        stopViewedTimeTracker();
         stopAdChecker();
     } else if (newState === YT.PlayerState.ENDED) {
         lastState = YT.PlayerState.ENDED;
+        stopViewedTimeTracker();
         stopAdChecker();
     }
 }
@@ -67,16 +78,67 @@ function syncPlayback(newState) {
 // This function sets the playback rates based on the current roles
 function applyPlayerModes() {
     if (!viewedPlayer || !standbyPlayer) return;
+    applyPlayerAudio();
     viewedPlayer.setPlaybackRate(1);
     if (!isStandbyPlayerInAdMode) {
         standbyPlayer.setPlaybackRate(2);
     }
 }
 
+function applyPlayerAudio() {
+    if (!viewedPlayer || !standbyPlayer) return;
+    viewedPlayer.unMute();
+    standbyPlayer.mute();
+}
+
+function startViewedTimeTracker() {
+    stopViewedTimeTracker();
+    viewedPlayerStableTime = -1;
+    updateViewedPlayerStableTime();
+
+    viewedTimeTrackInterval = setInterval(() => {
+        if (isSwitching || !viewedPlayer) return;
+        if (viewedPlayer.getPlayerState() !== YT.PlayerState.PLAYING) return;
+        updateViewedPlayerStableTime();
+    }, VIEWED_TIME_TRACK_INTERVAL_MS);
+}
+
+function stopViewedTimeTracker() {
+    clearInterval(viewedTimeTrackInterval);
+    viewedTimeTrackInterval = null;
+}
+
+function updateViewedPlayerStableTime() {
+    if (!viewedPlayer) return;
+
+    const currentTime = viewedPlayer.getCurrentTime();
+    if (!Number.isFinite(currentTime) || currentTime < 0) return;
+
+    if (
+        viewedPlayerStableTime < 0 ||
+        currentTime >= viewedPlayerStableTime - TIME_TRACK_TOLERANCE_SECONDS
+    ) {
+        viewedPlayerStableTime = currentTime;
+    }
+}
+
+function getBestSyncTime() {
+    if (viewedPlayerStableTime >= 0 && viewedPlayerLastTime >= 0) {
+        return Math.max(viewedPlayerStableTime, viewedPlayerLastTime);
+    }
+    if (viewedPlayerStableTime >= 0) return viewedPlayerStableTime;
+    if (viewedPlayerLastTime >= 0) return viewedPlayerLastTime;
+    if (!viewedPlayer) return 0;
+
+    const currentTime = viewedPlayer.getCurrentTime();
+    return Number.isFinite(currentTime) && currentTime >= 0 ? currentTime : 0;
+}
+
 function startAdChecker() {
     if (adCheckInterval) clearInterval(adCheckInterval);
     viewedPlayerLastTime = -1;
     standbyPlayerLastTime = -1;
+    updateViewedPlayerStableTime();
 
     adCheckInterval = setInterval(() => {
         if (isSwitching || !viewedPlayer || !standbyPlayer) return;
@@ -96,18 +158,24 @@ function startAdChecker() {
         }
 
         // --- 1. Check VIEWED player for ads ---
-        if (viewedPlayerLastTime > 0 && viewedTime < viewedPlayerLastTime && (viewedPlayerLastTime - viewedTime > 1)) {
+        if (
+            viewedPlayerLastTime > 0 &&
+            viewedTime < viewedPlayerLastTime &&
+            (viewedPlayerLastTime - viewedTime > AD_REWIND_THRESHOLD_SECONDS)
+        ) {
+            const syncTime = getBestSyncTime();
+
             // Don't switch if the standby player isn't ready (i.e., it's paused or in an ad itself)
             if (standbyPlayer.getPlayerState() === YT.PlayerState.PAUSED && !isStandbyPlayerInAdMode) {
-                console.log(`Ad detected on VIEWED player at ${viewedPlayerLastTime}. Switching...`);
-                switchPlayerRoles(viewedPlayerLastTime);
+                console.log(`Ad detected on VIEWED player at ${syncTime.toFixed(2)}s. Switching...`);
+                switchPlayerRoles(syncTime);
                 return;
             } else {
                 console.log("Ad detected on VIEWED player, but standby is not ready. User must watch ad.");
             }
         }
         viewedPlayerLastTime = viewedTime;
-
+        
         // --- 2. Check STANDBY player for ads ---
         if (isStandbyPlayerInAdMode) {
             // **MODIFIED**: Increment ad counter when time jumps forward within an ad block
@@ -123,7 +191,7 @@ function startAdChecker() {
             if (adIsOver) {
                 // --- THIS IS THE TEST LOG YOU REQUESTED ---
                 console.log(
-                    `%cStandby finished watching ${standbyAdCount} ad(s). Pausing successfully.`,
+                    `%cStandby player finished ${standbyAdCount} ad(s) and is now paused, waiting in standby mode.`,
                     "color: #007bff; font-weight: bold;"
                 );
                 
@@ -143,7 +211,7 @@ function startAdChecker() {
             }
         }
         standbyPlayerLastTime = standbyTime;
-    }, 500);
+    }, AD_CHECK_INTERVAL_MS);
 }
 
 function stopAdChecker() {
@@ -177,7 +245,8 @@ function switchPlayerRoles(syncTime) {
 
     applyPlayerModes();
 
-    viewedPlayerLastTime = -1;
+    viewedPlayerStableTime = syncTime;
+    viewedPlayerLastTime = syncTime;
     standbyPlayerLastTime = -1;
     isStandbyPlayerInAdMode = true;
 }
@@ -207,6 +276,8 @@ document.getElementById('homeBtn').addEventListener('click', function() {
 
     // Reset state
     lastState = -1;
+    viewedPlayerStableTime = -1;
+    stopViewedTimeTracker();
     stopAdChecker();
 
     // Show the landing page and hide the player

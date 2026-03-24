@@ -6,9 +6,9 @@
 }
 
 body {
-    background-color: #f4f1ea; /* A soft, warm beige */
-    font-family: 'Montserrat', sans-serif; /* Clean font for body text */
-    color: #5d4037; /* A dark, earthy brown for text */
+    background-color: #f4f1ea; /* beige */
+    font-family: 'Montserrat', sans-serif; /* font for body text */
+    color: #5d4037; /* dark brown for text */
     display: flex;
     justify-content: center;
     align-items: center;
@@ -27,10 +27,10 @@ body {
 
 /* --- Typography and Title Animation --- */
 h1 {
-    font-family: 'Playfair Display', serif; /* Elegant serif font for the title */
+    font-family: 'Playfair Display', serif; /* serif font for the title */
     font-size: 4rem;
     font-weight: 700;
-    color: #4e342e; /* A slightly darker brown for the title */
+    color: #4e342e; /* darker brown for the title */
     margin-bottom: 0.5rem;
 }
 
